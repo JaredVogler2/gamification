@@ -1,0 +1,1864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aircraft Manufacturing Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script>
+        // View Navigation
+        function showView(viewId) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active');
+            });
+            
+            // Remove active class from all nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Show selected view
+            const targetView = document.getElementById(viewId);
+            if (targetView) {
+                targetView.classList.add('active');
+            }
+            
+            // Add active class to clicked nav item
+            const clickedItem = document.querySelector(`.nav-item[onclick*="${viewId}"]`);
+            if (clickedItem) {
+                clickedItem.classList.add('active');
+            }
+            
+            // Initialize charts for the view if needed
+            if (viewId === 'predictive') {
+                initProbabilityChart();
+            } else if (viewId === 'bottleneck') {
+                initOvertimeChart();
+            } else if (viewId === 'cost') {
+                initEarnedValueChart();
+            } else if (viewId === 'mechanic') {
+                initPersonalPerformanceChart();
+            } else if (viewId === 'performance') {
+                initPerformanceTrendsChart();
+            } else if (viewId === 'budget') {
+                initBudgetCharts();
+            }
+        }
+
+        // Show Aircraft Details
+        function showAircraftDetails(aircraftId) {
+            const modal = document.getElementById('aircraftModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modalTitle.textContent = `Aircraft ${aircraftId} Details`;
+            modalBody.innerHTML = `
+                <div style="display: grid; gap: 1rem;">
+                    <div>
+                        <strong>Current Position:</strong> ${aircraftId === 'AC-1305' ? 'Position 0' : 
+                                                           aircraftId === 'AC-1304' ? 'Position 1' : 
+                                                           aircraftId === 'AC-1303' ? 'Position 2' : 
+                                                           aircraftId === 'AC-1302' ? 'Position 3' : 'FGI'}
+                    </div>
+                    <div>
+                        <strong>Days in Position:</strong> ${Math.floor(Math.random() * 4) + 1} / 4
+                    </div>
+                    <div>
+                        <strong>Next Milestone:</strong> ${aircraftId === 'AC-1302' ? 'Engine Hang' : 
+                                                          aircraftId === 'AC-1301' ? 'Wing Join' : 
+                                                          'System Integration'}
+                    </div>
+                    <div>
+                        <strong>On-Time Probability:</strong> ${75 + Math.floor(Math.random() * 20)}%
+                    </div>
+                    <div>
+                        <strong>CC3 Hours:</strong> ${1800 + Math.floor(Math.random() * 400)}
+                    </div>
+                    <div>
+                        <strong>CC4 Hours:</strong> ${200 + Math.floor(Math.random() * 200)}
+                    </div>
+                    <div>
+                        <strong>Critical Issues:</strong> ${Math.random() > 0.5 ? 'None' : 'Wire harness delay (2 days)'}
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+
+        // Close Modal
+        function closeModal() {
+            document.getElementById('aircraftModal').classList.remove('active');
+        }
+
+        // Redeem Reward
+        function redeemReward(rewardName) {
+            alert(`Redeeming: ${rewardName}\nThis feature would connect to your rewards system.`);
+        }
+
+        // Initialize Chart placeholders
+        function initProbabilityChart() {
+            const ctx = document.getElementById('probabilityChart');
+            if (!ctx) return;
+            
+            // Destroy existing chart if it exists
+            if (ctx.chart) {
+                ctx.chart.destroy();
+            }
+            
+            // Generate CDF data points
+            const days = [];
+            const probabilities = [];
+            for (let i = -10; i <= 20; i++) {
+                days.push(i);
+                // Cumulative normal distribution
+                const z = i / 5; // standard deviation of 5 days
+                const cdf = 0.5 * (1 + erf(z / Math.sqrt(2)));
+                probabilities.push(cdf * 100);
+            }
+            
+            ctx.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: 'Cumulative Probability (%)',
+                        data: probabilities,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Cumulative Distribution Function - Days Late',
+                            color: '#e0e6ed',
+                            font: { size: 16 }
+                        },
+                        legend: {
+                            display: true,
+                            labels: { color: '#e0e6ed' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Days from Target (negative = early, positive = late)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Cumulative Probability (%)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: '#1e2447' },
+                            ticks: { 
+                                color: '#94a3b8',
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            min: 0,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Error function approximation for normal CDF
+        function erf(x) {
+            const a1 =  0.254829592;
+            const a2 = -0.284496736;
+            const a3 =  1.421413741;
+            const a4 = -1.453152027;
+            const a5 =  1.061405429;
+            const p  =  0.3275911;
+            
+            const sign = x >= 0 ? 1 : -1;
+            x = Math.abs(x);
+            
+            const t = 1.0 / (1.0 + p * x);
+            const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+            
+            return sign * y;
+        }
+
+        function initOvertimeChart() {
+            const ctx = document.getElementById('overtimeChart');
+            if (!ctx) return;
+            
+            if (ctx.chart) {
+                ctx.chart.destroy();
+            }
+            
+            ctx.chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Structures', 'Avionics', 'Hydraulics', 'Electrical', 'Propulsion', 'Interior'],
+                    datasets: [{
+                        label: 'Overtime Hours/Week',
+                        data: [12, 45, 38, 18, 25, 8],
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.6)',
+                            'rgba(239, 68, 68, 0.6)',
+                            'rgba(239, 68, 68, 0.6)',
+                            'rgba(251, 146, 60, 0.6)',
+                            'rgba(251, 146, 60, 0.6)',
+                            'rgba(34, 197, 94, 0.6)'
+                        ],
+                        borderColor: [
+                            '#22c55e',
+                            '#ef4444',
+                            '#ef4444',
+                            '#fb923c',
+                            '#fb923c',
+                            '#22c55e'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Overtime Hours per Week',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initEarnedValueChart() {
+            const ctx = document.getElementById('earnedValueChart');
+            if (!ctx) return;
+            
+            if (ctx.chart) {
+                ctx.chart.destroy();
+            }
+            
+            const months = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+            
+            ctx.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Planned Value',
+                        data: [100, 200, 300, 400, 500, 600],
+                        borderColor: '#667eea',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        borderDash: [5, 5]
+                    }, {
+                        label: 'Earned Value',
+                        data: [95, 185, 275, 360, 440, 520],
+                        borderColor: '#22c55e',
+                        borderWidth: 3,
+                        tension: 0.1
+                    }, {
+                        label: 'Actual Cost',
+                        data: [110, 210, 320, 410, 490, 580],
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e6ed' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Value (Hours x 1000)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initPersonalPerformanceChart() {
+            const ctx = document.getElementById('personalPerformanceChart');
+            if (!ctx) return;
+            
+            if (ctx.chart) {
+                ctx.chart.destroy();
+            }
+            
+            ctx.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                    datasets: [{
+                        label: 'Tasks Completed',
+                        data: [32, 38, 35, 42],
+                        borderColor: '#667eea',
+                        yAxisID: 'y',
+                        borderWidth: 3
+                    }, {
+                        label: 'Quality Score (%)',
+                        data: [97.5, 98.2, 98.0, 98.5],
+                        borderColor: '#22c55e',
+                        yAxisID: 'y1',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e6ed' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Tasks Completed',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Quality Score (%)',
+                                color: '#94a3b8'
+                            },
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#94a3b8' },
+                            min: 95,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function initPerformanceTrendsChart() {
+            const ctx = document.getElementById('performanceTrendsChart');
+            if (!ctx) return;
+            
+            if (ctx.chart) {
+                ctx.chart.destroy();
+            }
+            
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+            
+            ctx.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'OEE %',
+                        data: [72, 74, 75, 76, 77, 78.4],
+                        borderColor: '#667eea',
+                        borderWidth: 3
+                    }, {
+                        label: 'Schedule Adherence %',
+                        data: [88, 90, 92, 93, 92.5, 91.7],
+                        borderColor: '#22c55e',
+                        borderWidth: 3
+                    }, {
+                        label: 'First Pass Yield %',
+                        data: [84, 85, 86, 86.5, 87, 87.6],
+                        borderColor: '#fb923c',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e6ed' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Percentage (%)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: '#1e2447' },
+                            ticks: { color: '#94a3b8' },
+                            min: 70,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function initBudgetCharts() {
+            // Budget Category Chart
+            const ctx1 = document.getElementById('budgetCategoryChart');
+            if (ctx1) {
+                if (ctx1.chart) ctx1.chart.destroy();
+                
+                ctx1.chart = new Chart(ctx1, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Labor', 'Materials', 'Equipment', 'Overhead', 'Other'],
+                        datasets: [{
+                            data: [45, 30, 10, 10, 5],
+                            backgroundColor: [
+                                '#667eea',
+                                '#764ba2',
+                                '#22c55e',
+                                '#fb923c',
+                                '#ef4444'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { color: '#e0e6ed' }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Burn Rate Chart
+            const ctx2 = document.getElementById('burnRateChart');
+            if (ctx2) {
+                if (ctx2.chart) ctx2.chart.destroy();
+                
+                ctx2.chart = new Chart(ctx2, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{
+                            label: 'Monthly Spend ($M)',
+                            data: [10.2, 11.5, 10.8, 12.1, 11.8, 12.5],
+                            backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                            borderColor: '#667eea',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#1e2447' },
+                                ticks: { color: '#94a3b8' }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Spend ($M)',
+                                    color: '#94a3b8'
+                                },
+                                grid: { color: '#1e2447' },
+                                ticks: { color: '#94a3b8' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0e27;
+            color: #e0e6ed;
+            overflow-x: hidden;
+        }
+
+        .dashboard-container {
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 260px;
+            background: #151a35;
+            padding: 2rem 1rem;
+            border-right: 1px solid #1e2447;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            transition: all 0.3s ease;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 3rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-title {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 0.75rem 1rem;
+            color: #94a3b8;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 0.25rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: #1e2447;
+            color: #e0e6ed;
+            transform: translateX(5px);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            padding: 2rem;
+        }
+
+        .view {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #1e2447;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.5rem 1.5rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        /* Cards */
+        .card {
+            background: #151a35;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #1e2447;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        }
+
+        .grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+
+        /* Stats */
+        .stat-card {
+            background: linear-gradient(135deg, #151a35 0%, #1e2447 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+
+        .stat-change {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .stat-change.positive {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .stat-change.negative {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        /* Production Flow Visualization */
+        .flow-container {
+            background: #0f1729;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            overflow-x: auto;
+        }
+
+        .flow-stages {
+            display: flex;
+            align-items: center;
+            min-width: 800px;
+            gap: 2rem;
+        }
+
+        .flow-stage {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+
+        .stage-box {
+            background: #151a35;
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            margin-bottom: 1rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .stage-box:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .stage-aircraft {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .aircraft-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .aircraft-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .flow-arrow {
+            position: absolute;
+            right: -2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #667eea;
+            font-size: 1.5rem;
+        }
+
+        /* Charts Container */
+        .chart-container {
+            height: 400px;
+            position: relative;
+            background: #0f1729;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        /* Select Dropdown */
+        select {
+            background: #1e2447;
+            color: #e0e6ed;
+            border: 1px solid #2d3561;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        /* Progress Bars */
+        .progress-bar {
+            background: #1e2447;
+            border-radius: 10px;
+            height: 10px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+
+        /* Task List */
+        .task-item {
+            background: #0f1729;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            background: #1e2447;
+            transform: translateX(5px);
+        }
+
+        .task-priority {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        .priority-high {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .priority-medium {
+            background: rgba(251, 146, 60, 0.2);
+            color: #fb923c;
+        }
+
+        .priority-low {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        /* Reward Shop */
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .shop-item {
+            background: #0f1729;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .shop-item:hover {
+            background: #1e2447;
+            transform: translateY(-5px);
+        }
+
+        .shop-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .shop-price {
+            color: #667eea;
+            font-weight: bold;
+            margin-top: 0.5rem;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #151a35;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 0;
+                padding: 0;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .grid-2, .grid-3, .grid-4 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">AeroFlow Dashboard</div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Executive Views</div>
+                <a class="nav-item active" href="#" onclick="showView('overview'); return false;">Production Overview</a>
+                <a class="nav-item" href="#" onclick="showView('predictive'); return false;">Predictive Analytics</a>
+                <a class="nav-item" href="#" onclick="showView('bottleneck'); return false;">Bottleneck Analysis</a>
+                <a class="nav-item" href="#" onclick="showView('cost'); return false;">Cost Tracking</a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Team Views</div>
+                <a class="nav-item" href="#" onclick="showView('mechanic'); return false;">Mechanic Dashboard</a>
+                <a class="nav-item" href="#" onclick="showView('rewards'); return false;">Reward Shop</a>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-title">Analytics</div>
+                <a class="nav-item" href="#" onclick="showView('performance'); return false;">Performance Metrics</a>
+                <a class="nav-item" href="#" onclick="showView('budget'); return false;">Budget Analysis</a>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Production Overview -->
+            <div id="overview" class="view active">
+                <div class="header">
+                    <h1>Production Overview</h1>
+                    <div class="header-actions">
+                        <span>Last Updated: <strong id="lastUpdate">2 min ago</strong></span>
+                        <button class="btn">Export Report</button>
+                    </div>
+                </div>
+
+                <!-- Production Flow Visualization -->
+                <div class="flow-container">
+                    <h3 style="margin-bottom: 1.5rem;">Aircraft Production Flow (FIFO)</h3>
+                    <div class="flow-stages">
+                        <div class="flow-stage">
+                            <div class="stage-box">
+                                <h4>Position 0</h4>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">4 Days</p>
+                                <div class="stage-aircraft">
+                                    <div class="aircraft-icon" onclick="showAircraftDetails('AC-1305')">1305</div>
+                                </div>
+                                <div class="flow-arrow">→</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flow-stage">
+                            <div class="stage-box">
+                                <h4>Position 1</h4>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">4 Days</p>
+                                <div class="stage-aircraft">
+                                    <div class="aircraft-icon" onclick="showAircraftDetails('AC-1304')">1304</div>
+                                </div>
+                                <div class="flow-arrow">→</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flow-stage">
+                            <div class="stage-box">
+                                <h4>Position 2</h4>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">4 Days</p>
+                                <div class="stage-aircraft">
+                                    <div class="aircraft-icon" onclick="showAircraftDetails('AC-1303')">1303</div>
+                                </div>
+                                <div class="flow-arrow">→</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flow-stage">
+                            <div class="stage-box">
+                                <h4>Position 3</h4>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">4 Days</p>
+                                <div class="stage-aircraft">
+                                    <div class="aircraft-icon" onclick="showAircraftDetails('AC-1302')">1302</div>
+                                </div>
+                                <div class="flow-arrow">→</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flow-stage">
+                            <div class="stage-box">
+                                <h4>FGI</h4>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Until B1</p>
+                                <div class="stage-aircraft">
+                                    <div class="aircraft-icon" onclick="showAircraftDetails('AC-1301')">1301</div>
+                                    <div class="aircraft-icon" onclick="showAircraftDetails('AC-1300')">1300</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Key Metrics -->
+                <div class="grid grid-4">
+                    <div class="stat-card">
+                        <div class="stat-label">On-Time Delivery Rate</div>
+                        <div class="stat-value">94.2%</div>
+                        <span class="stat-change positive">↑ 2.3% vs last month</span>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-label">Aircraft in Production</div>
+                        <div class="stat-value">6</div>
+                        <span class="stat-change positive">On track</span>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Cycle Time</div>
+                        <div class="stat-value">28.5d</div>
+                        <span class="stat-change negative">↑ 0.5d vs target</span>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-label">First Pass Yield</div>
+                        <div class="stat-value">87.6%</div>
+                        <span class="stat-change positive">↑ 1.2% vs last month</span>
+                    </div>
+                </div>
+
+                <!-- Upcoming Milestones -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Upcoming Milestones</h3>
+                    </div>
+                    <div class="grid grid-3">
+                        <div class="task-item">
+                            <div>
+                                <strong>AC-1302: Engine Hang</strong>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Due in 2 days</p>
+                            </div>
+                            <span class="task-priority priority-high">Critical</span>
+                        </div>
+                        <div class="task-item">
+                            <div>
+                                <strong>AC-1301: Wing Join</strong>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Due in 5 days</p>
+                            </div>
+                            <span class="task-priority priority-medium">On Track</span>
+                        </div>
+                        <div class="task-item">
+                            <div>
+                                <strong>AC-1300: Weight on Wheels</strong>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Due in 8 days</p>
+                            </div>
+                            <span class="task-priority priority-low">Ahead</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Predictive Analytics View -->
+            <div id="predictive" class="view">
+                <div class="header">
+                    <h1>Predictive Analytics</h1>
+                    <div class="header-actions">
+                        <select id="milestoneSelect">
+                            <option>B1 - First Flight</option>
+                            <option>Engine Hang</option>
+                            <option>Wing Join</option>
+                            <option>Weight on Wheels</option>
+                            <option>Power On</option>
+                            <option>Oil On</option>
+                        </select>
+                        <button class="btn">Run Analysis</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-2">
+                    <!-- Probability Distribution Chart -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Delivery Probability Distribution</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="probabilityChart"></canvas>
+                        </div>
+                        <p style="margin-top: 1rem; color: #94a3b8;">
+                            <strong>Analysis:</strong> 85% probability of on-time delivery, 
+                            12% probability of 1-3 days late, 3% probability of >3 days late
+                        </p>
+                    </div>
+
+                    <!-- Risk Factors -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Key Risk Factors</h3>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span>Supply Chain Delays</span>
+                                    <span style="color: #ef4444;">High</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 78%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span>Labor Shortage</span>
+                                    <span style="color: #fb923c;">Medium</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 45%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span>Quality Issues</span>
+                                    <span style="color: #22c55e;">Low</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 22%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span>Equipment Availability</span>
+                                    <span style="color: #22c55e;">Low</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 15%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aircraft-Specific Predictions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Aircraft Delivery Predictions</h3>
+                    </div>
+                    <div class="grid grid-3">
+                        <div class="stat-card">
+                            <h4>AC-1300</h4>
+                            <div class="stat-value" style="font-size: 1.5rem;">92%</div>
+                            <div class="stat-label">On-Time Probability</div>
+                            <p style="margin-top: 1rem; font-size: 0.875rem;">
+                                Expected B1: March 15, 2024<br>
+                                Risk Level: <span style="color: #22c55e;">Low</span>
+                            </p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>AC-1301</h4>
+                            <div class="stat-value" style="font-size: 1.5rem;">78%</div>
+                            <div class="stat-label">On-Time Probability</div>
+                            <p style="margin-top: 1rem; font-size: 0.875rem;">
+                                Expected B1: March 22, 2024<br>
+                                Risk Level: <span style="color: #fb923c;">Medium</span>
+                            </p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>AC-1302</h4>
+                            <div class="stat-value" style="font-size: 1.5rem;">65%</div>
+                            <div class="stat-label">On-Time Probability</div>
+                            <p style="margin-top: 1rem; font-size: 0.875rem;">
+                                Expected B1: March 29, 2024<br>
+                                Risk Level: <span style="color: #ef4444;">High</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottleneck Analysis View -->
+            <div id="bottleneck" class="view">
+                <div class="header">
+                    <h1>Bottleneck Analysis</h1>
+                    <div class="header-actions">
+                        <span>Analysis Period: Last 30 Days</span>
+                        <button class="btn">Generate Report</button>
+                    </div>
+                </div>
+
+                <!-- Team Performance & Bottlenecks -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Team Bottleneck Risk Assessment</h3>
+                    </div>
+                    <div class="grid grid-2">
+                        <div>
+                            <h4 style="margin-bottom: 1rem;">High Risk Teams</h4>
+                            <div class="task-item" style="background: rgba(239, 68, 68, 0.1);">
+                                <div>
+                                    <strong>Avionics Team</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        15% behind schedule • 45 hrs overtime/week
+                                    </p>
+                                </div>
+                                <span class="task-priority priority-high">Critical</span>
+                            </div>
+                            <div class="task-item" style="background: rgba(239, 68, 68, 0.1);">
+                                <div>
+                                    <strong>Hydraulics Team</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        12% behind schedule • 38 hrs overtime/week
+                                    </p>
+                                </div>
+                                <span class="task-priority priority-high">Critical</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 1rem;">Process Bottlenecks</h4>
+                            <div class="task-item">
+                                <div>
+                                    <strong>Wire Harness Installation</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        Avg delay: 2.3 days • Impact: 3 aircraft
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="task-item">
+                                <div>
+                                    <strong>Final System Integration</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        Avg delay: 1.8 days • Impact: 2 aircraft
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overtime Tracking -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Team Overtime Analysis</h3>
+                    </div>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="overtimeChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Milestone Risk Matrix -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Milestone Risk Matrix</h3>
+                    </div>
+                    <div class="grid grid-3">
+                        <div class="stat-card">
+                            <h4>Engine Hang</h4>
+                            <div style="margin: 1rem 0;">
+                                <div class="progress-bar" style="height: 20px;">
+                                    <div class="progress-fill" style="width: 85%; background: linear-gradient(90deg, #ef4444 0%, #fb923c 100%);"></div>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.875rem;">85% Risk Score</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Wing Join</h4>
+                            <div style="margin: 1rem 0;">
+                                <div class="progress-bar" style="height: 20px;">
+                                    <div class="progress-fill" style="width: 45%;"></div>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.875rem;">45% Risk Score</p>
+                        </div>
+                        <div class="stat-card">
+                            <h4>Power On</h4>
+                            <div style="margin: 1rem 0;">
+                                <div class="progress-bar" style="height: 20px;">
+                                    <div class="progress-fill" style="width: 30%;"></div>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.875rem;">30% Risk Score</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost Tracking View -->
+            <div id="cost" class="view">
+                <div class="header">
+                    <h1>Cost Tracking</h1>
+                    <div class="header-actions">
+                        <select>
+                            <option>All Aircraft</option>
+                            <option>AC-1300</option>
+                            <option>AC-1301</option>
+                            <option>AC-1302</option>
+                        </select>
+                        <button class="btn">Export Data</button>
+                    </div>
+                </div>
+
+                <!-- Cost Overview -->
+                <div class="grid grid-3">
+                    <div class="stat-card">
+                        <div class="stat-label">Total CC3 Hours</div>
+                        <div class="stat-value">12,450</div>
+                        <span class="stat-change positive">↓ 3.2% vs baseline</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total CC4 Hours</div>
+                        <div class="stat-value">1,890</div>
+                        <span class="stat-change negative">↑ 8.5% vs target</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Rework Rate</div>
+                        <div class="stat-value">15.2%</div>
+                        <span class="stat-change negative">↑ 2.1% vs target</span>
+                    </div>
+                </div>
+
+                <!-- Aircraft Cost Breakdown -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Cost per Aircraft</h3>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <th style="padding: 1rem; text-align: left;">Aircraft</th>
+                                    <th style="padding: 1rem; text-align: center;">CC3 Hours</th>
+                                    <th style="padding: 1rem; text-align: center;">CC4 Hours</th>
+                                    <th style="padding: 1rem; text-align: center;">Total Hours</th>
+                                    <th style="padding: 1rem; text-align: center;">% Over Baseline</th>
+                                    <th style="padding: 1rem; text-align: center;">Earned Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">AC-1300</td>
+                                    <td style="padding: 1rem; text-align: center;">2,050</td>
+                                    <td style="padding: 1rem; text-align: center;">280</td>
+                                    <td style="padding: 1rem; text-align: center;">2,330</td>
+                                    <td style="padding: 1rem; text-align: center; color: #22c55e;">-2.5%</td>
+                                    <td style="padding: 1rem; text-align: center;">0.92</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">AC-1301</td>
+                                    <td style="padding: 1rem; text-align: center;">2,120</td>
+                                    <td style="padding: 1rem; text-align: center;">350</td>
+                                    <td style="padding: 1rem; text-align: center;">2,470</td>
+                                    <td style="padding: 1rem; text-align: center; color: #ef4444;">+3.2%</td>
+                                    <td style="padding: 1rem; text-align: center;">0.87</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">AC-1302</td>
+                                    <td style="padding: 1rem; text-align: center;">2,200</td>
+                                    <td style="padding: 1rem; text-align: center;">410</td>
+                                    <td style="padding: 1rem; text-align: center;">2,610</td>
+                                    <td style="padding: 1rem; text-align: center; color: #ef4444;">+9.1%</td>
+                                    <td style="padding: 1rem; text-align: center;">0.81</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Earned Value Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Earned Value Trend</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="earnedValueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mechanic Dashboard -->
+            <div id="mechanic" class="view">
+                <div class="header">
+                    <h1>Mechanic Dashboard</h1>
+                    <div class="header-actions">
+                        <span>Welcome, <strong>John Smith</strong></span>
+                        <span style="margin-left: 1rem;">Points: <strong style="color: #667eea;">2,450</strong></span>
+                    </div>
+                </div>
+
+                <!-- Personal Stats -->
+                <div class="grid grid-4">
+                    <div class="stat-card">
+                        <div class="stat-label">Tasks Completed</div>
+                        <div class="stat-value">147</div>
+                        <span class="stat-change positive">This Month</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Quality Score</div>
+                        <div class="stat-value">98.5%</div>
+                        <span class="stat-change positive">↑ 1.2%</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Efficiency</div>
+                        <div class="stat-value">112%</div>
+                        <span class="stat-change positive">Above Target</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Team Rank</div>
+                        <div class="stat-value">#3</div>
+                        <span class="stat-change positive">↑ 2 positions</span>
+                    </div>
+                </div>
+
+                <!-- Prioritized Task List -->
+                <div class="grid grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Your Priority Tasks</h3>
+                            <button class="btn" style="font-size: 0.75rem;">Refresh</button>
+                        </div>
+                        <div>
+                            <div class="task-item">
+                                <div>
+                                    <strong>#1 - AC-1302: Install Hydraulic Lines</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        Est. 2.5 hrs • Points: 150
+                                    </p>
+                                </div>
+                                <span class="task-priority priority-high">Start Now</span>
+                            </div>
+                            <div class="task-item">
+                                <div>
+                                    <strong>#2 - AC-1301: Connect Avionics Bay</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        Est. 3.0 hrs • Points: 200
+                                    </p>
+                                </div>
+                                <span class="task-priority priority-medium">Next</span>
+                            </div>
+                            <div class="task-item">
+                                <div>
+                                    <strong>#3 - AC-1303: Torque Check Wings</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        Est. 1.5 hrs • Points: 100
+                                    </p>
+                                </div>
+                                <span class="task-priority priority-low">Queue</span>
+                            </div>
+                            <div class="task-item">
+                                <div>
+                                    <strong>#4 - AC-1300: Install Fuel System</strong>
+                                    <p style="color: #94a3b8; font-size: 0.875rem;">
+                                        Est. 4.0 hrs • Points: 250
+                                    </p>
+                                </div>
+                                <span class="task-priority priority-low">Queue</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance History -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Your Performance</h3>
+                        </div>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="personalPerformanceChart"></canvas>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <p style="color: #94a3b8; font-size: 0.875rem;">
+                                <strong>Value Earned:</strong> $45,230 this month<br>
+                                <strong>Avg Time/Task:</strong> 2.3 hrs (15% faster than average)<br>
+                                <strong>First Pass Yield:</strong> 98.5%
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Team Performance -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Hydraulics Team Performance</h3>
+                    </div>
+                    <div class="grid grid-3">
+                        <div>
+                            <h4 style="margin-bottom: 1rem;">Team Stats</h4>
+                            <p style="color: #94a3b8; line-height: 1.8;">
+                                Total Tasks: <strong style="color: #e0e6ed;">523</strong><br>
+                                On-Time Rate: <strong style="color: #22c55e;">91%</strong><br>
+                                Quality Score: <strong style="color: #e0e6ed;">96.8%</strong><br>
+                                Team Size: <strong style="color: #e0e6ed;">12 mechanics</strong>
+                            </p>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 1rem;">Top Performers</h4>
+                            <ol style="color: #94a3b8; line-height: 1.8;">
+                                <li>Sarah Johnson - 2,890 pts</li>
+                                <li>Mike Chen - 2,675 pts</li>
+                                <li><strong style="color: #667eea;">You - 2,450 pts</strong></li>
+                                <li>Alex Rivera - 2,320 pts</li>
+                            </ol>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 1rem;">Team Goals</h4>
+                            <div style="margin-bottom: 1rem;">
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Monthly Task Target</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 78%"></div>
+                                </div>
+                                <p style="color: #94a3b8; font-size: 0.75rem; margin-top: 0.5rem;">523/670 (78%)</p>
+                            </div>
+                            <div>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Quality Target</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 96.8%"></div>
+                                </div>
+                                <p style="color: #94a3b8; font-size: 0.75rem; margin-top: 0.5rem;">96.8/95% (Exceeded)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reward Shop -->
+            <div id="rewards" class="view">
+                <div class="header">
+                    <h1>Reward Shop</h1>
+                    <div class="header-actions">
+                        <span>Your Points: <strong style="color: #667eea; font-size: 1.5rem;">2,450</strong></span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Available Rewards</h3>
+                    </div>
+                    <div class="shop-grid">
+                        <div class="shop-item" onclick="redeemReward('Amazon $25')">
+                            <div class="shop-icon">🛍️</div>
+                            <h4>Amazon Gift Card</h4>
+                            <p style="color: #94a3b8; font-size: 0.875rem;">$25 Value</p>
+                            <div class="shop-price">500 Points</div>
+                        </div>
+                        <div class="shop-item" onclick="redeemReward('Extra Day Off')">
+                            <div class="shop-icon">🏖️</div>
+                            <h4>Extra Day Off</h4>
+                            <p style="color: #94a3b8; font-size: 0.875rem;">Paid Leave</p>
+                            <div class="shop-price">2,000 Points</div>
+                        </div>
+                        <div class="shop-item" onclick="redeemReward('Lunch Voucher')">
+                            <div class="shop-icon">🍔</div>
+                            <h4>Lunch Voucher</h4>
+                            <p style="color: #94a3b8; font-size: 0.875rem;">$15 Value</p>
+                            <div class="shop-price">300 Points</div>
+                        </div>
+                        <div class="shop-item" onclick="redeemReward('Tool Upgrade')">
+                            <div class="shop-icon">🔧</div>
+                            <h4>Tool Upgrade</h4>
+                            <p style="color: #94a3b8; font-size: 0.875rem;">Premium Tools</p>
+                            <div class="shop-price">1,500 Points</div>
+                        </div>
+                        <div class="shop-item" onclick="redeemReward('Parking Spot')">
+                            <div class="shop-icon">🚗</div>
+                            <h4>VIP Parking</h4>
+                            <p style="color: #94a3b8; font-size: 0.875rem;">1 Month</p>
+                            <div class="shop-price">800 Points</div>
+                        </div>
+                        <div class="shop-item" onclick="redeemReward('Training Course')">
+                            <div class="shop-icon">📚</div>
+                            <h4>Training Course</h4>
+                            <p style="color: #94a3b8; font-size: 0.875rem;">Skill Development</p>
+                            <div class="shop-price">1,200 Points</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Redemption History</h3>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div class="task-item">
+                            <div>
+                                <strong>Amazon Gift Card - $25</strong>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Redeemed on Feb 15, 2024</p>
+                            </div>
+                            <span style="color: #667eea;">-500 pts</span>
+                        </div>
+                        <div class="task-item">
+                            <div>
+                                <strong>Lunch Voucher - $15</strong>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Redeemed on Feb 8, 2024</p>
+                            </div>
+                            <span style="color: #667eea;">-300 pts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Metrics View -->
+            <div id="performance" class="view">
+                <div class="header">
+                    <h1>Performance Metrics</h1>
+                    <div class="header-actions">
+                        <select>
+                            <option>Last 30 Days</option>
+                            <option>Last Quarter</option>
+                            <option>Year to Date</option>
+                        </select>
+                        <button class="btn">Download Report</button>
+                    </div>
+                </div>
+
+                <!-- KPI Overview -->
+                <div class="grid grid-4">
+                    <div class="stat-card">
+                        <div class="stat-label">Overall Equipment Effectiveness</div>
+                        <div class="stat-value">78.4%</div>
+                        <span class="stat-change positive">↑ 3.2%</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Schedule Adherence</div>
+                        <div class="stat-value">91.7%</div>
+                        <span class="stat-change negative">↓ 1.1%</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Defect Rate</div>
+                        <div class="stat-value">2.3%</div>
+                        <span class="stat-change positive">↓ 0.5%</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Labor Efficiency</div>
+                        <div class="stat-value">108%</div>
+                        <span class="stat-change positive">↑ 5.2%</span>
+                    </div>
+                </div>
+
+                <!-- Performance Trends -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Performance Trends</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="performanceTrendsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Department Performance -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Department Performance Matrix</h3>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <th style="padding: 1rem; text-align: left;">Department</th>
+                                    <th style="padding: 1rem; text-align: center;">Efficiency</th>
+                                    <th style="padding: 1rem; text-align: center;">Quality</th>
+                                    <th style="padding: 1rem; text-align: center;">Schedule</th>
+                                    <th style="padding: 1rem; text-align: center;">Overall</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">Structures</td>
+                                    <td style="padding: 1rem; text-align: center;">115%</td>
+                                    <td style="padding: 1rem; text-align: center;">99.2%</td>
+                                    <td style="padding: 1rem; text-align: center;">95%</td>
+                                    <td style="padding: 1rem; text-align: center; color: #22c55e;">A+</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">Avionics</td>
+                                    <td style="padding: 1rem; text-align: center;">87%</td>
+                                    <td style="padding: 1rem; text-align: center;">97.8%</td>
+                                    <td style="padding: 1rem; text-align: center;">82%</td>
+                                    <td style="padding: 1rem; text-align: center; color: #fb923c;">B</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">Hydraulics</td>
+                                    <td style="padding: 1rem; text-align: center;">92%</td>
+                                    <td style="padding: 1rem; text-align: center;">96.5%</td>
+                                    <td style="padding: 1rem; text-align: center;">88%</td>
+                                    <td style="padding: 1rem; text-align: center; color: #fb923c;">B+</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #1e2447;">
+                                    <td style="padding: 1rem;">Electrical</td>
+                                    <td style="padding: 1rem; text-align: center;">105%</td>
+                                    <td style="padding: 1rem; text-align: center;">98.9%</td>
+                                    <td style="padding: 1rem; text-align: center;">92%</td>
+                                    <td style="padding: 1rem; text-align: center; color: #22c55e;">A</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Analysis View -->
+            <div id="budget" class="view">
+                <div class="header">
+                    <h1>Budget Analysis</h1>
+                    <div class="header-actions">
+                        <select>
+                            <option>Q1 2024</option>
+                            <option>Q4 2023</option>
+                            <option>FY 2024</option>
+                        </select>
+                        <button class="btn">Export Analysis</button>
+                    </div>
+                </div>
+
+                <!-- Budget Overview -->
+                <div class="grid grid-3">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Budget</div>
+                        <div class="stat-value">$145M</div>
+                        <span class="stat-change positive">On Track</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Actual Spend</div>
+                        <div class="stat-value">$32.8M</div>
+                        <span class="stat-change positive">22.6% of Budget</span>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Variance</div>
+                        <div class="stat-value">-2.3%</div>
+                        <span class="stat-change positive">Under Budget</span>
+                    </div>
+                </div>
+
+                <!-- Budget Breakdown -->
+                <div class="grid grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Budget by Category</h3>
+                        </div>
+                        <div class="chart-container" style="height: 300px;">
+                            <canvas id="budgetCategoryChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Monthly Burn Rate</h3>
+                        </div>
+                        <div class="chart-container" style="height: 300px;">
+                            <canvas id="burnRateChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cost Projections -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Cost Projections</h3>
+                    </div>
+                    <div class="grid grid-3">
+                        <div>
+                            <h4>Labor Costs</h4>
+                            <div style="margin: 1rem 0;">
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Projected: $78.2M</p>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Current Run Rate: $76.5M</p>
+                                <div class="progress-bar" style="margin-top: 0.5rem;">
+                                    <div class="progress-fill" style="width: 24%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4>Material Costs</h4>
+                            <div style="margin: 1rem 0;">
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Projected: $52.3M</p>
+                                <p style="color: #94a3b8; font-size: 0.875rem;">Current Run Rate: $54.1M</p>
+                                <div class="progress-bar" style="margin-top: 0.5rem;">
+                                    <div class="progress-fill" style="width: 28%; background: linear-gradient(90deg, #fb923c 0%, #ef4444 100%);"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h4>Overhead</h4>
+                            <div
